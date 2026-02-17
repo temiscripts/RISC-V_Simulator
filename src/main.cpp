@@ -67,38 +67,40 @@ void stage_MEM() {
 }
 
 void stage_EX() {
-    pipeline.MEM = pipeline.EX; 
+    pipeline.MEM = pipeline.EX;
+
     if (!pipeline.EX.instr.has_value()) return;
 
     Instruction inst = pipeline.EX.instr.value();
-    int val1 = regs[inst.rs1];
-    int val2 = regs[inst.rs2];
+    int result = 0;
 
     switch(inst.opcode) {
         case OpCode::ADD:
-            pipeline.MEM.cycleEntered = val1 + val2;
-            cout << "  [EX] ADD x" << inst.rd << " = " << val1 << " + " << val2 << " -> " << pipeline.MEM.cycleEntered << endl;
+            result = regs[inst.rs1] + regs[inst.rs2];
+            cout << "  [EX] ADD x" << inst.rd << " = " << regs[inst.rs1] << " + " << regs[inst.rs2] << " -> " << result << endl;
             break;
         case OpCode::SUB:
-            pipeline.MEM.cycleEntered = val1 - val2;
-            cout << "  [EX] SUB x" << inst.rd << " = " << val1 << " - " << val2 << " -> " << pipeline.MEM.cycleEntered << endl;
+            result = regs[inst.rs1] - regs[inst.rs2];
+            cout << "  [EX] SUB x" << inst.rd << " = " << regs[inst.rs1] << " - " << regs[inst.rs2] << " -> " << result << endl;
             break;
         case OpCode::LW:
         case OpCode::SW:
-            pipeline.MEM.cycleEntered = val1 + inst.imm;
-            cout << "  [EX] Memory Addr Calc: " << val1 << " + " << inst.imm << " -> " << pipeline.MEM.cycleEntered << endl;
+            result = regs[inst.rs1] + inst.imm;
+            cout << "  [EX] Memory Addr Calc: " << result << endl;
             break;
         case OpCode::BEQ:
-            if (val1 == val2) {
+            if (regs[inst.rs1] == regs[inst.rs2]) {
                 pc = inst.imm;
-                cout << "  [EX] BEQ TAKEN -> PC = " << pc << endl;
+                branch_taken = true;
+                cout << "  [EX] BEQ TAKEN to PC=" << pc << endl;
             } else {
                 cout << "  [EX] BEQ NOT taken" << endl;
             }
             break;
     }
 
-    pipeline.EX.instr.reset(); 
+    pipeline.MEM.cycleEntered = result;
+    pipeline.EX.instr.reset();
 }
 
 
