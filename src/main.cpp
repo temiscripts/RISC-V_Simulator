@@ -20,13 +20,22 @@ int cycle_count = 0;
 
 
 void stage_WB() {
-    auto &wb = pipeline.WB.instr;
-    if (!wb.has_value()) return;
+    if (!pipeline.WB.instr.has_value()) return;
 
-    Instruction inst = wb.value();
-    if (inst.opcode == OpCode::ADD || inst.opcode == OpCode::SUB || inst.opcode == OpCode::LW) {
-        regs[inst.rd] = inst.opcode == OpCode::LW ? pipeline.WB.cycleEntered : regs[inst.rd];
-        cout << "  [WB] Wrote to x" << inst.rd << endl;
+    Instruction inst = pipeline.WB.instr.value();
+
+    switch(inst.opcode) {
+        case OpCode::ADD:
+        case OpCode::SUB:
+            regs[inst.rd] = pipeline.WB.cycleEntered;
+            cout << "  [WB] Wrote " << pipeline.WB.cycleEntered << " to x" << inst.rd << endl;
+            break;
+        case OpCode::LW:
+            regs[inst.rd] = pipeline.WB.cycleEntered;
+            cout << "  [WB] Loaded " << pipeline.WB.cycleEntered << " into x" << inst.rd << endl;
+            break;
+        default:
+            break;
     }
 
     pipeline.WB.instr.reset();
@@ -34,20 +43,24 @@ void stage_WB() {
 
 void stage_MEM() {
     pipeline.WB = pipeline.MEM; 
-    auto &mem_inst = pipeline.MEM.instr;
-    if (!mem_inst.has_value()) return;
+    if (!pipeline.MEM.instr.has_value()) return;
 
-    Instruction inst = mem_inst.value();
+    Instruction inst = pipeline.MEM.instr.value();
+    int addr = pipeline.MEM.cycleEntered; 
+    int val;
 
-    if (inst.opcode == OpCode::LW) {
-        int data = memory[inst.imm]; 
-        cache.read(inst.imm, data);  
-        pipeline.WB.cycleEntered = data; 
-    } else if (inst.opcode == OpCode::SW) {
-        int data = regs[inst.rs2];
-        memory[inst.imm] = data;
-        cache.write(inst.imm, data);
-        cout << "  [MEM] Stored " << data << " at Addr " << inst.imm << endl;
+    switch(inst.opcode) {
+        case OpCode::LW:
+            cache.read(addr, val);
+            pipeline.WB.cycleEntered = val;
+            cout << "  [MEM] LW from " << addr << " -> " << val << endl;
+            break;
+        case OpCode::SW:
+            cache.write(addr, regs[inst.rs2]);
+            cout << "  [MEM] SW to " << addr << " <- " << regs[inst.rs2] << endl;
+            break;
+        default:
+            cout << "  [MEM] Passing ALU result " << pipeline.MEM.cycleEntered << " to WB" << endl;
     }
 
     pipeline.MEM.instr.reset();
