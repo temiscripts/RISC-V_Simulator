@@ -55,8 +55,39 @@ void stage_MEM() {
 
 void stage_EX() {
     pipeline.MEM = pipeline.EX; 
-    pipeline.EX.instr.reset();
+    if (!pipeline.EX.instr.has_value()) return;
+
+    Instruction inst = pipeline.EX.instr.value();
+    int val1 = regs[inst.rs1];
+    int val2 = regs[inst.rs2];
+
+    switch(inst.opcode) {
+        case OpCode::ADD:
+            pipeline.MEM.cycleEntered = val1 + val2;
+            cout << "  [EX] ADD x" << inst.rd << " = " << val1 << " + " << val2 << " -> " << pipeline.MEM.cycleEntered << endl;
+            break;
+        case OpCode::SUB:
+            pipeline.MEM.cycleEntered = val1 - val2;
+            cout << "  [EX] SUB x" << inst.rd << " = " << val1 << " - " << val2 << " -> " << pipeline.MEM.cycleEntered << endl;
+            break;
+        case OpCode::LW:
+        case OpCode::SW:
+            pipeline.MEM.cycleEntered = val1 + inst.imm;
+            cout << "  [EX] Memory Addr Calc: " << val1 << " + " << inst.imm << " -> " << pipeline.MEM.cycleEntered << endl;
+            break;
+        case OpCode::BEQ:
+            if (val1 == val2) {
+                pc = inst.imm;
+                cout << "  [EX] BEQ TAKEN -> PC = " << pc << endl;
+            } else {
+                cout << "  [EX] BEQ NOT taken" << endl;
+            }
+            break;
+    }
+
+    pipeline.EX.instr.reset(); 
 }
+
 
 void stage_ID() {
     pipeline.EX = pipeline.ID;
