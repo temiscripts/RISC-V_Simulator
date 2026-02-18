@@ -49,19 +49,14 @@ void stage_MEM() {
     int addr = pipeline.MEM.cycleEntered; 
     int val;
 
-    switch(inst.opcode) {
-        case OpCode::LW:
-            cache.read(addr, val);
-            pipeline.WB.cycleEntered = val;
-            cout << "  [MEM] LW from " << addr << " -> " << val << endl;
-            break;
-        case OpCode::SW:
-            cache.write(addr, regs[inst.rs2]);
-            cout << "  [MEM] SW to " << addr << " <- " << regs[inst.rs2] << endl;
-            break;
-        default:
-            cout << "  [MEM] Passing ALU result " << pipeline.MEM.cycleEntered << " to WB" << endl;
-    }
+if (inst.opcode == OpCode::LW) {
+    int value;
+    bool hit = cache.read(EX_MEM.alu_result, value);
+    MEM_WB.mem_read_data = value;
+} else if (inst.opcode == OpCode::SW) {
+    cache.write(EX_MEM.alu_result, regs[inst.rs2]);
+}
+
 
     pipeline.MEM.instr.reset();
 }
@@ -116,14 +111,14 @@ void stage_IF(const vector<Instruction> &program) {
     }
 }
 
-void run_cycle(const vector<Instruction> &program) {
-    cout << "\n=== CYCLE " << ++cycle_count << " ===" << endl;
-    stage_WB();
-    stage_MEM();
-    stage_EX();
-    stage_ID();
-    stage_IF(program);
+void run_cycle(const vector<Instruction>& program, DirectMappedCache &cache, int memory[], int regs[]) {
+    stage_WB(MEM_WB, regs);
+    stage_MEM(EX_MEM, MEM_WB, cache, memory);
+    stage_EX(ID_EX, EX_MEM, regs);
+    stage_ID(IF_ID, ID_EX);
+    stage_IF(program, IF_ID);
 }
+
 
 int main() {
     vector<Instruction> program = {
