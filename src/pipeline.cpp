@@ -4,6 +4,15 @@
 
 using namespace std;
 
+void Pipeline::commit() {
+    IF  = nextIF;
+    ID  = nextID;
+    EX  = nextEX;
+    MEM = nextMEM;
+    WB  = nextWB;
+
+    nextIF = nextID = nextEX = nextMEM = nextWB = PipelineStage();
+}
 
 void Pipeline::stage_WB(int regs[]) {
     if (!WB.instr.has_value()) return;
@@ -23,16 +32,18 @@ void Pipeline::stage_WB(int regs[]) {
 }
 
 void Pipeline::stage_MEM(DirectMappedCache &cache, int memory[], int regs[]) {
-    WB = MEM;
 
     if (!MEM.instr.has_value()) return;
 
     Instruction inst = MEM.instr.value();
 
+        nextWB = MEM;
+
+
     if (inst.opcode == OpCode::LW) {
         int value;
         cache.read(MEM.alu_result, value);
-        WB.mem_data = value;
+        nextWB.mem_data = value;
         cout << "[MEM] LW from " << MEM.alu_result << endl;
     }
     else if (inst.opcode == OpCode::SW) {
@@ -41,62 +52,53 @@ void Pipeline::stage_MEM(DirectMappedCache &cache, int memory[], int regs[]) {
         cout << "[MEM] SW to " << MEM.alu_result << endl;
     }
 
-    MEM.instr.reset();
 }
 
 void Pipeline::stage_EX(int regs[]) {
-    MEM = EX;
 
     if (!EX.instr.has_value()) return;
 
     Instruction inst = EX.instr.value();
 
-    if (inst.opcode == OpCode::ADD) {
-        MEM.alu_result = regs[inst.rs1] + regs[inst.rs2];
-    }
-    else if (inst.opcode == OpCode::SUB) {
-        MEM.alu_result = regs[inst.rs1] - regs[inst.rs2];
+    nextMEM = EX;
+
+    if (inst.opcode == OpCode::ADD || inst.opcode == OpCode::SUB) {
+        nextMEM.alu_result = regs[inst.rs1] + regs[inst.rs2];
     }
     else if (inst.opcode == OpCode::LW || inst.opcode == OpCode::SW) {
-        MEM.alu_result = regs[inst.rs1] + inst.imm;
+        nextMEM.alu_result = regs[inst.rs1] + inst.imm;
     }
 
-    EX.instr.reset();
 }
 
-void Pipeline::stage_ID(int regs[]) {
+void Pipeline::stage_ID() {
 
-    if (EX.instr.has_value()) {
+    if (EX.instr.has_value() && ID.instr.has_value()) {
         Instruction exInst = EX.instr.value();
+        Instruction idInst = ID.instr.value();
 
-        if (exInst.opcode == OpCode::LW && ID.instr.has_value()) {
-            Instruction idInst = ID.instr.value();
+        if (exInst.opcode == OpCode::LW &&
+            (idInst.rs1 == exInst.rd || idInst.rs2 == exInst.rd)) {
 
-            if (idInst.rs1 == exInst.rd || idInst.rs2 == exInst.rd) {
-                cout << "[STALL] Load-Use hazard detected\n";
+            cout << "[STALL] Load-Use hazard detected\n";
 
-                EX = PipelineStage();
-
-                return; 
-            }
+            nextEX = PipelineStage();
+            nextID = ID;             
+            return;
         }
     }
 
-    EX = ID;
-    ID = IF;
-    ID.instr.reset();
+    nextEX = ID;
+    nextID = IF;
 }
 
 
 void Pipeline::stage_IF(const vector<Instruction> &program, int &pc) {
-   if (ID.instr.has_value()) return; 
-   
-    IF = PipelineStage(); 
+
+    if (nextID.instr.has_value()) return;  
 
     if (pc < program.size()) {
-        IF.instr = program[pc++];
+        nextIF.instr = program[pc++];
         cout << "[IF] Fetched instruction at PC " << pc-1 << endl;
     }
 }
-
-

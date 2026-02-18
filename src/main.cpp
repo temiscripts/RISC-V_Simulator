@@ -33,8 +33,9 @@ int main() {
         pipeline.stage_WB(regs);
         pipeline.stage_MEM(cache, memory, regs);
         pipeline.stage_EX(regs);
-        pipeline.stage_ID(regs);
+        pipeline.stage_ID();
         pipeline.stage_IF(program, pc);
+        pipeline.commit();
     }
 
     return 0;

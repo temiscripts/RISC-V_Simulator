@@ -2,7 +2,6 @@
 #define PIPELINE_H
 
 #include "instruction.h"
-#include <queue>
 #include <optional>
 #include "cache.h"
 #include <vector>
@@ -20,11 +19,16 @@ struct PipelineStage {
 struct Pipeline {
     PipelineStage IF, ID, EX, MEM, WB;
 
+    PipelineStage nextIF, nextID, nextEX, nextMEM, nextWB;
+
     void stage_IF(const std::vector<Instruction>& program, int &pc);
-    void stage_ID(int regs[]);
+    void stage_ID();
     void stage_EX(int regs[]);
     void stage_MEM(DirectMappedCache &cache, int memory[], int regs[]);
     void stage_WB(int regs[]);
+
+    void commit();  
 };
+
 
 #endif
