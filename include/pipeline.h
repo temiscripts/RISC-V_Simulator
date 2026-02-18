@@ -22,6 +22,12 @@ struct Pipeline {
     PipelineStage IF, ID, EX, MEM, WB;
 
     PipelineStage nextIF, nextID, nextEX, nextMEM, nextWB;
+    long long total_cycles = 0;
+long long total_instructions = 0;
+long long stall_count = 0;
+long long lane1_issued = 0;
+long long lane2_issued = 0;
+
 
     void stage_IF(const std::vector<Instruction>& program, int &pc);
     void stage_ID();

@@ -30,18 +30,34 @@ int main() {
     memory[10] = 500;
     memory[11] = 20;
 
-    int total_cycles = program.size() + 4;
+int max_cycles = program.size() + 8;
 
-    for (int cycle = 0; cycle < total_cycles; cycle++) {
-        cout << "\n=== Cycle " << cycle+1 << " ===\n";
+for (int cycle = 0; cycle < max_cycles; cycle++) {
 
-        pipeline.stage_WB(regs);
-        pipeline.stage_MEM(cache, memory, regs);
-        pipeline.stage_EX(regs);
-        pipeline.stage_ID();
-        pipeline.stage_IF(program, pc);
-        pipeline.commit();
-    }
+    cout << "\n=== Cycle " << cycle+1 << " ===\n";
+
+    pipeline.total_cycles++;   
+
+    pipeline.stage_WB(regs);
+    pipeline.stage_MEM(cache, memory, regs);
+    pipeline.stage_EX(regs);
+    pipeline.stage_ID();
+    pipeline.stage_IF(program, pc);
+    pipeline.commit();
+}
+    cout << "\n===== PERFORMANCE METRICS =====\n";
+cout << "Total Cycles: " << pipeline.total_cycles << endl;
+cout << "Total Instructions: " << pipeline.total_instructions << endl;
+cout << "IPC: "
+     << (double)pipeline.total_instructions / pipeline.total_cycles
+     << endl;
+cout << "Stalls: " << pipeline.stall_count << endl;
+cout << "Lane1 Issued: " << pipeline.lane1_issued << endl;
+cout << "Lane2 Issued: " << pipeline.lane2_issued << endl;
+cout << "Lane Utilization: "
+     << (double)(pipeline.lane1_issued + pipeline.lane2_issued) /
+        (2 * pipeline.total_cycles) * 100
+     << "%\n";
 
     return 0;
 }

@@ -12,6 +12,7 @@ void Pipeline::commit() {
     IF  = nextIF;
 
     nextWB = nextMEM = nextEX = nextID = nextIF = PipelineStage();
+
 }
 
 void Pipeline::stage_WB(int regs[]) {
@@ -37,6 +38,8 @@ void Pipeline::stage_WB(int regs[]) {
             cout << "[WB] x" << inst.rd << " = "
                  << mem_data << endl;
         }
+        total_instructions++;
+
     };
 
     writeback(WB.instr1, WB.alu_result1, WB.mem_data1);
@@ -128,6 +131,7 @@ void Pipeline::stage_ID() {
 
     nextEX.instr1 = ID.instr1;
 
+    lane1_issued++;
     if (ID.instr2.has_value()) {
 
         Instruction i1 = ID.instr1.value();
@@ -145,10 +149,13 @@ void Pipeline::stage_ID() {
             dependency = true;
 
         if (dependency) {
+            stall_count++;
             cout << "[ISSUE] Lane2 stalled due to intra-cycle dependency\n";
         }
         else {
             nextEX.instr2 = ID.instr2;
+            lane2_issued++;
+
         }
     }
 
