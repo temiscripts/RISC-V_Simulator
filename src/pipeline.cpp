@@ -53,22 +53,72 @@ void Pipeline::stage_MEM(DirectMappedCache &cache, int memory[], int regs[]) {
     }
 
 }
-
 void Pipeline::stage_EX(int regs[]) {
-
     if (!EX.instr.has_value()) return;
 
     Instruction inst = EX.instr.value();
 
+    int val1 = regs[inst.rs1];
+    int val2 = regs[inst.rs2];
+
+    if (MEM.instr.has_value()) {
+        Instruction memInst = MEM.instr.value();
+        if ((memInst.opcode == OpCode::ADD || memInst.opcode == OpCode::SUB || memInst.opcode == OpCode::LW) &&
+            memInst.rd != 0) {
+            if (memInst.rd == inst.rs1) {
+                val1 = MEM.alu_result;
+                cout << "[FORWARD] EX gets val1 from MEM stage for x" << inst.rs1 << endl;
+            }
+            if (memInst.rd == inst.rs2) {
+                val2 = MEM.alu_result;
+                cout << "[FORWARD] EX gets val2 from MEM stage for x" << inst.rs2 << endl;
+            }
+        }
+    }
+
+    if (WB.instr.has_value()) {
+        Instruction wbInst = WB.instr.value();
+        if ((wbInst.opcode == OpCode::ADD || wbInst.opcode == OpCode::SUB || wbInst.opcode == OpCode::LW) &&
+            wbInst.rd != 0) {
+            if (wbInst.rd == inst.rs1) {
+                val1 = (wbInst.opcode == OpCode::LW) ? WB.mem_data : WB.alu_result;
+                cout << "[FORWARD] EX gets val1 from WB stage for x" << inst.rs1 << endl;
+            }
+            if (wbInst.rd == inst.rs2) {
+                val2 = (wbInst.opcode == OpCode::LW) ? WB.mem_data : WB.alu_result;
+                cout << "[FORWARD] EX gets val2 from WB stage for x" << inst.rs2 << endl;
+            }
+        }
+    }
+
     nextMEM = EX;
 
-    if (inst.opcode == OpCode::ADD || inst.opcode == OpCode::SUB) {
-        nextMEM.alu_result = regs[inst.rs1] + regs[inst.rs2];
-    }
-    else if (inst.opcode == OpCode::LW || inst.opcode == OpCode::SW) {
-        nextMEM.alu_result = regs[inst.rs1] + inst.imm;
+    switch (inst.opcode) {
+        case OpCode::ADD:
+            nextMEM.alu_result = val1 + val2;
+            cout << "[EX] ADD x" << inst.rd << " = " << val1 << " + " << val2 << " -> " << nextMEM.alu_result << endl;
+            break;
+        case OpCode::SUB:
+            nextMEM.alu_result = val1 - val2;
+            cout << "[EX] SUB x" << inst.rd << " = " << val1 << " - " << val2 << " -> " << nextMEM.alu_result << endl;
+            break;
+        case OpCode::LW:
+        case OpCode::SW:
+            nextMEM.alu_result = val1 + inst.imm;
+            cout << "[EX] Mem Addr Calc: " << val1 << " + " << inst.imm << " = " << nextMEM.alu_result << endl;
+            break;
+        case OpCode::BEQ:
+            if (val1 == val2) {
+                cout << "[EX] BEQ TAKEN to PC=" << inst.imm << endl;
+            } else {
+                cout << "[EX] BEQ NOT taken" << endl;
+            }
+            break;
+        default:
+            break;
     }
 
+    EX.instr.reset();
 }
 
 void Pipeline::stage_ID() {
