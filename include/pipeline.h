@@ -8,12 +8,14 @@
 
 
 struct PipelineStage {
-    std::optional<Instruction> instr;
-    int cycleEntered = 0;
+    std::optional<Instruction> instr1;
+    std::optional<Instruction> instr2;
 
-    int alu_result = 0; 
-    int mem_data = 0;   
+    int cycleEntered = 0;
+    int alu_result1 = 0, alu_result2 = 0;
+    int mem_data1 = 0, mem_data2 = 0;
 };
+
 
 
 struct Pipeline {

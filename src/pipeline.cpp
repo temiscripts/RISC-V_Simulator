@@ -5,150 +5,172 @@
 using namespace std;
 
 void Pipeline::commit() {
-    IF  = nextIF;
-    ID  = nextID;
-    EX  = nextEX;
-    MEM = nextMEM;
     WB  = nextWB;
+    MEM = nextMEM;
+    EX  = nextEX;
+    ID  = nextID;
+    IF  = nextIF;
 
-    nextIF = nextID = nextEX = nextMEM = nextWB = PipelineStage();
+    nextWB = nextMEM = nextEX = nextID = nextIF = PipelineStage();
 }
 
 void Pipeline::stage_WB(int regs[]) {
-    if (!WB.instr.has_value()) return;
 
-    Instruction inst = WB.instr.value();
+    auto writeback = [&](optional<Instruction>& instr,
+                         int alu_result,
+                         int mem_data)
+    {
+        if (!instr.has_value()) return;
 
-    if (inst.opcode == OpCode::ADD || inst.opcode == OpCode::SUB) {
-        regs[inst.rd] = WB.alu_result;
-        cout << "[WB] Writing " << WB.alu_result << " to x" << inst.rd << endl;
-    }
-    else if (inst.opcode == OpCode::LW) {
-        regs[inst.rd] = WB.mem_data;
-        cout << "[WB] Writing " << WB.mem_data << " to x" << inst.rd << endl;
-    }
+        Instruction inst = instr.value();
 
-    WB.instr.reset();
+        if (inst.opcode == OpCode::ADD ||
+            inst.opcode == OpCode::SUB)
+        {
+            regs[inst.rd] = alu_result;
+            cout << "[WB] x" << inst.rd << " = "
+                 << alu_result << endl;
+        }
+        else if (inst.opcode == OpCode::LW)
+        {
+            regs[inst.rd] = mem_data;
+            cout << "[WB] x" << inst.rd << " = "
+                 << mem_data << endl;
+        }
+    };
+
+    writeback(WB.instr1, WB.alu_result1, WB.mem_data1);
+    writeback(WB.instr2, WB.alu_result2, WB.mem_data2);
 }
 
-void Pipeline::stage_MEM(DirectMappedCache &cache, int memory[], int regs[]) {
+void Pipeline::stage_MEM(DirectMappedCache& cache,
+                         int memory[],
+                         int regs[])
+{
+    nextWB = MEM;
 
-    if (!MEM.instr.has_value()) return;
+    auto mem_access = [&](optional<Instruction>& instr,
+                          int alu_result,
+                          int& mem_data)
+    {
+        if (!instr.has_value()) return;
 
-    Instruction inst = MEM.instr.value();
+        Instruction inst = instr.value();
 
-        nextWB = MEM;
+        if (inst.opcode == OpCode::LW) {
+            cache.read(alu_result, mem_data);
+            cout << "[MEM] LW from "
+                 << alu_result << endl;
+        }
+        else if (inst.opcode == OpCode::SW) {
+            cache.write(alu_result, regs[inst.rs2]);
+            memory[alu_result] = regs[inst.rs2];
+            cout << "[MEM] SW to "
+                 << alu_result << endl;
+        }
+    };
 
+    mem_access(MEM.instr1,
+               MEM.alu_result1,
+               nextWB.mem_data1);
 
-    if (inst.opcode == OpCode::LW) {
-        int value;
-        cache.read(MEM.alu_result, value);
-        nextWB.mem_data = value;
-        cout << "[MEM] LW from " << MEM.alu_result << endl;
-    }
-    else if (inst.opcode == OpCode::SW) {
-        cache.write(MEM.alu_result, regs[inst.rs2]);
-        memory[MEM.alu_result] = regs[inst.rs2];
-        cout << "[MEM] SW to " << MEM.alu_result << endl;
-    }
-
+    mem_access(MEM.instr2,
+               MEM.alu_result2,
+               nextWB.mem_data2);
 }
+
 void Pipeline::stage_EX(int regs[]) {
-    if (!EX.instr.has_value()) return;
-
-    Instruction inst = EX.instr.value();
-
-    int val1 = regs[inst.rs1];
-    int val2 = regs[inst.rs2];
-
-    if (MEM.instr.has_value()) {
-        Instruction memInst = MEM.instr.value();
-        if ((memInst.opcode == OpCode::ADD || memInst.opcode == OpCode::SUB || memInst.opcode == OpCode::LW) &&
-            memInst.rd != 0) {
-            if (memInst.rd == inst.rs1) {
-                val1 = MEM.alu_result;
-                cout << "[FORWARD] EX gets val1 from MEM stage for x" << inst.rs1 << endl;
-            }
-            if (memInst.rd == inst.rs2) {
-                val2 = MEM.alu_result;
-                cout << "[FORWARD] EX gets val2 from MEM stage for x" << inst.rs2 << endl;
-            }
-        }
-    }
-
-    if (WB.instr.has_value()) {
-        Instruction wbInst = WB.instr.value();
-        if ((wbInst.opcode == OpCode::ADD || wbInst.opcode == OpCode::SUB || wbInst.opcode == OpCode::LW) &&
-            wbInst.rd != 0) {
-            if (wbInst.rd == inst.rs1) {
-                val1 = (wbInst.opcode == OpCode::LW) ? WB.mem_data : WB.alu_result;
-                cout << "[FORWARD] EX gets val1 from WB stage for x" << inst.rs1 << endl;
-            }
-            if (wbInst.rd == inst.rs2) {
-                val2 = (wbInst.opcode == OpCode::LW) ? WB.mem_data : WB.alu_result;
-                cout << "[FORWARD] EX gets val2 from WB stage for x" << inst.rs2 << endl;
-            }
-        }
-    }
 
     nextMEM = EX;
 
-    switch (inst.opcode) {
-        case OpCode::ADD:
-            nextMEM.alu_result = val1 + val2;
-            cout << "[EX] ADD x" << inst.rd << " = " << val1 << " + " << val2 << " -> " << nextMEM.alu_result << endl;
-            break;
-        case OpCode::SUB:
-            nextMEM.alu_result = val1 - val2;
-            cout << "[EX] SUB x" << inst.rd << " = " << val1 << " - " << val2 << " -> " << nextMEM.alu_result << endl;
-            break;
-        case OpCode::LW:
-        case OpCode::SW:
-            nextMEM.alu_result = val1 + inst.imm;
-            cout << "[EX] Mem Addr Calc: " << val1 << " + " << inst.imm << " = " << nextMEM.alu_result << endl;
-            break;
-        case OpCode::BEQ:
-            if (val1 == val2) {
-                cout << "[EX] BEQ TAKEN to PC=" << inst.imm << endl;
-            } else {
-                cout << "[EX] BEQ NOT taken" << endl;
-            }
-            break;
-        default:
-            break;
-    }
+    auto execute = [&](optional<Instruction>& instr,
+                       int& alu_result)
+    {
+        if (!instr.has_value()) return;
 
-    EX.instr.reset();
+        Instruction inst = instr.value();
+
+        int val1 = regs[inst.rs1];
+        int val2 = regs[inst.rs2];
+
+        switch (inst.opcode) {
+
+            case OpCode::ADD:
+                alu_result = val1 + val2;
+                break;
+
+            case OpCode::SUB:
+                alu_result = val1 - val2;
+                break;
+
+            case OpCode::LW:
+            case OpCode::SW:
+                alu_result = val1 + inst.imm;
+                break;
+
+            default:
+                break;
+        }
+    };
+
+    execute(EX.instr1, nextMEM.alu_result1);
+    execute(EX.instr2, nextMEM.alu_result2);
 }
 
 void Pipeline::stage_ID() {
 
-    if (EX.instr.has_value() && ID.instr.has_value()) {
-        Instruction exInst = EX.instr.value();
-        Instruction idInst = ID.instr.value();
+    nextEX = PipelineStage();
 
-        if (exInst.opcode == OpCode::LW &&
-            (idInst.rs1 == exInst.rd || idInst.rs2 == exInst.rd)) {
+    if (!ID.instr1.has_value()) {
+        nextID = IF;
+        return;
+    }
 
-            cout << "[STALL] Load-Use hazard detected\n";
+    nextEX.instr1 = ID.instr1;
 
-            nextEX = PipelineStage();
-            nextID = ID;             
-            return;
+    if (ID.instr2.has_value()) {
+
+        Instruction i1 = ID.instr1.value();
+        Instruction i2 = ID.instr2.value();
+
+        bool dependency = false;
+
+        if (i2.rs1 == i1.rd && i1.rd != 0)
+            dependency = true;
+
+        if (i2.rs2 == i1.rd && i1.rd != 0)
+            dependency = true;
+
+        if (i1.rd == i2.rd && i1.rd != 0)
+            dependency = true;
+
+        if (dependency) {
+            cout << "[ISSUE] Lane2 stalled due to intra-cycle dependency\n";
+        }
+        else {
+            nextEX.instr2 = ID.instr2;
         }
     }
 
-    nextEX = ID;
     nextID = IF;
 }
 
-
-void Pipeline::stage_IF(const vector<Instruction> &program, int &pc) {
-
-    if (nextID.instr.has_value()) return;  
+void Pipeline::stage_IF(const vector<Instruction>& program,
+                        int& pc)
+{
+    if (nextID.instr1.has_value() ||
+        nextID.instr2.has_value())
+        return;
 
     if (pc < program.size()) {
-        nextIF.instr = program[pc++];
-        cout << "[IF] Fetched instruction at PC " << pc-1 << endl;
+        nextIF.instr1 = program[pc++];
+        cout << "[IF] Fetched PC "
+             << pc-1 << endl;
+    }
+
+    if (pc < program.size()) {
+        nextIF.instr2 = program[pc++];
+        cout << "[IF] Fetched PC "
+             << pc-1 << endl;
     }
 }

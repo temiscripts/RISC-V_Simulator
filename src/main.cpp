@@ -15,11 +15,16 @@ int main() {
     DirectMappedCache cache(4);
 
     vector<Instruction> program = {
-        {OpCode::LW, 1, 0, 0, 10, "LW x1, 10(x0)"},
-        {OpCode::LW, 2, 0, 0, 11, "LW x2, 11(x0)"},
-        {OpCode::ADD,3,1,2,0, "ADD x3, x1, x2"},
-        {OpCode::SW, 0, 0, 3, 20,"SW x3, 20(x0)"},
-        {OpCode::SUB,1,1,2,0, "SUB x1, x1, x2"}
+        {OpCode::LW, 1, 0, 0, 10},  
+    {OpCode::LW, 2, 0, 0, 11}, 
+
+    {OpCode::ADD, 3, 1, 2, 0},  
+    {OpCode::SUB, 4, 2, 1, 0},
+
+    {OpCode::SW, 0, 0, 3, 20},  
+    {OpCode::SW, 0, 0, 4, 21}, 
+
+    {OpCode::ADD, 5, 1, 3, 0}, 
     };
 
     memory[10] = 500;
