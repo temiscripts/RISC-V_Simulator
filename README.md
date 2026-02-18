@@ -30,7 +30,7 @@ This project is a **cycle-accurate software simulator** for a subset of the RISC
 
 1. Clone the repository and navigate to the directory:
    ```bash
-   git clone https://github.com/<your-username>/riscv-simulator.git
+   git clone https://github.com/temiscripts/riscv-simulator.git
    cd riscv-simulator
 2. Compile the source code:
 
