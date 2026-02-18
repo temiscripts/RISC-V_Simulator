@@ -32,7 +32,7 @@ void Pipeline::stage_MEM(DirectMappedCache &cache, int memory[], int regs[]) {
     if (inst.opcode == OpCode::LW) {
         int value;
         cache.read(MEM.alu_result, value);
-        WB.mem_data = memory[MEM.alu_result];
+        WB.mem_data = value;
         cout << "[MEM] LW from " << MEM.alu_result << endl;
     }
     else if (inst.opcode == OpCode::SW) {
@@ -65,14 +65,38 @@ void Pipeline::stage_EX(int regs[]) {
 }
 
 void Pipeline::stage_ID(int regs[]) {
+
+    if (EX.instr.has_value()) {
+        Instruction exInst = EX.instr.value();
+
+        if (exInst.opcode == OpCode::LW && ID.instr.has_value()) {
+            Instruction idInst = ID.instr.value();
+
+            if (idInst.rs1 == exInst.rd || idInst.rs2 == exInst.rd) {
+                cout << "[STALL] Load-Use hazard detected\n";
+
+                EX = PipelineStage();
+
+                return; 
+            }
+        }
+    }
+
     EX = ID;
+    ID = IF;
     ID.instr.reset();
 }
 
+
 void Pipeline::stage_IF(const vector<Instruction> &program, int &pc) {
+   if (ID.instr.has_value()) return; 
+   
+    IF = PipelineStage(); 
+
     if (pc < program.size()) {
-        ID.instr = program[pc++];
+        IF.instr = program[pc++];
         cout << "[IF] Fetched instruction at PC " << pc-1 << endl;
     }
 }
+
 
