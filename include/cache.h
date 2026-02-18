@@ -1,7 +1,7 @@
 #ifndef CACHE_H
 #define CACHE_H
 
-#include <unordered_map>
+#include <vector>
 
 struct CacheLine {
     int address = -1;
